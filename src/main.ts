@@ -13,6 +13,7 @@ const CACHE_SPAWN_PROBABILITY = 0.1; // 10% of grid cells within neighborhood si
 
 // Game state variables
 let playerPoints = 0;
+let playerTotalPoints = 0;
 const statusPanel = document.querySelector<HTMLDivElement>("#statusPanel")!;
 statusPanel.innerHTML = "No points yet...";
 
@@ -92,7 +93,8 @@ function createCachePopup(i: number, j: number): HTMLDivElement {
   popupDiv.classList.add("cache-popup");
   popupDiv.innerHTML = `
     <div>There is a cache here at "${i},${j}". It has value <span id="value">${pointValue}</span>.</div>
-    <button id="poke">poke</button>`;
+    <button id="poke">poke</button>
+    <button id="deposit">deposit</button>`;
 
   popupDiv.querySelector<HTMLButtonElement>("#poke")!.addEventListener(
     "click",
@@ -102,6 +104,23 @@ function createCachePopup(i: number, j: number): HTMLDivElement {
         popupDiv.querySelector<HTMLSpanElement>("#value")!.innerHTML =
           pointValue.toString();
         playerPoints++;
+        playerTotalPoints++;
+        updatePlayerPoints();
+
+        // Update the stored value
+        cachePointValues.set(`${i},${j}`, pointValue);
+      }
+    },
+  );
+
+  popupDiv.querySelector<HTMLButtonElement>("#deposit")!.addEventListener(
+    "click",
+    () => {
+      if (playerTotalPoints > 0) {
+        pointValue++;
+        popupDiv.querySelector<HTMLSpanElement>("#value")!.innerHTML =
+          pointValue.toString();
+        playerTotalPoints--;
         updatePlayerPoints();
 
         // Update the stored value
