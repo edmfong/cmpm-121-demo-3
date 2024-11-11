@@ -96,3 +96,19 @@ button:focus-visible {
   color: white;
   cursor: pointer;
 }
+
+/* Remove bullets and add spacing */
+.coin-list {
+  padding: 0;
+  margin: 0;
+}
+
+.coin-item {
+  margin-bottom: 10px; /* Adds space between each coin item */
+  padding: 5px 0; /* Adds padding for better readability */
+}
+
+/* Optional: Style the poke button */
+.poke-coin {
+  margin-left: 10px;
+}

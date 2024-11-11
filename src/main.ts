@@ -138,7 +138,7 @@ function createCachePopup(i: number, j: number): HTMLDivElement {
     () => {
       // Check if there are any coins left in the cache
       if (coins.length > 0) {
-        const coin = coins.pop(); // Get and remove the last coin
+        const coin = coins.shift(); // Get and remove the last coin
         if (coin) {
           // Log which coin was attained
           console.log(`Coin attained: ${coin.j}:${coin.i}#${coin.serial}`);
@@ -168,19 +168,32 @@ function createCachePopup(i: number, j: number): HTMLDivElement {
   popupDiv.querySelector<HTMLButtonElement>("#deposit")!.addEventListener(
     "click",
     () => {
-      if (playerTotalPoints > 0) {
-        // Increment the number of coins and update the cache
-        const newSerial = coins.length;
-        coins.push({ serial: newSerial, i, j });
-        cacheCoins.set(`${i},${j}`, coins);
+      // Check if the player has at least one coin in the inventory
+      if (playerInventory.length > 0) {
+        // Remove the first coin from the inventory
+        const firstCoin = playerInventory.shift(); // Removes the first coin
+        if (firstCoin) {
+          console.log(`Coin deposited: ${j}:${i}#${firstCoin.serial}`);
 
-        // Update the popup content dynamically after the deposit
-        popupDiv.querySelector("div")!.innerHTML =
-          `There is a cache here at "${j}, ${i}".<br>It has ${coins.length} coins.`;
+          // Add the coin to the cache's coins array
+          coins.push(firstCoin); // Add the first coin to the cache
+          cacheCoins.set(`${i},${j}`, coins); // Update the cache coins map
 
-        // Update player's points
-        updatePlayerPoints();
+          // Update the popup content dynamically after the deposit
+          popupDiv.querySelector("div")!.innerHTML =
+            `There is a cache here at "${j}, ${i}".<br>It has ${coins.length} coins.`;
+
+          // Update player's points
+          playerPoints++;
+          playerTotalPoints++;
+          updatePlayerPoints();
+        }
+      } else {
+        console.log("You have no coins to deposit.");
       }
+
+      // Update the inventory display
+      updateInventory();
     },
   );
 
