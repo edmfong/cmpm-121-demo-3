@@ -3,6 +3,7 @@ import "leaflet/dist/leaflet.css";
 import "./style.css";
 import "./leafletWorkaround.ts";
 import luck from "./luck.ts";
+import { Board, Cell } from "./board.ts"; // Import Cell and Board
 
 // Constants and configuration
 const OAKES_CLASSROOM = leaflet.latLng(36.98949379578401, -122.06277128548504);
@@ -11,11 +12,14 @@ const TILE_DEGREES = 0.0001;
 const NEIGHBORHOOD_SIZE = 8; // steps away from player
 const CACHE_SPAWN_PROBABILITY = 0.1; // 10% of grid cells within neighborhood size
 
+// Initialize the Board for managing cells
+const board = new Board(TILE_DEGREES, NEIGHBORHOOD_SIZE);
+
 // Game state variables
 let playerPoints = 0;
 let playerTotalPoints = 0;
 const statusPanel = document.querySelector<HTMLDivElement>("#statusPanel")!;
-statusPanel.innerHTML = "No points yet...";
+statusPanel.innerHTML = "No points yet...<br>0 coins";
 
 // Initialize the game map
 const map = initializeMap();
@@ -62,24 +66,16 @@ function createPlayerMarker(): leaflet.Marker {
 
 // Updates the player's points display.
 function updatePlayerPoints() {
-  statusPanel.innerHTML = `${playerPoints} points accumulated`;
+  statusPanel.innerHTML =
+    `${playerPoints} points accumulated<br>${playerTotalPoints} coins`;
 }
 
-// Spawns a cache at the specified cell position (i, j) on the map.
-function spawnCache(i: number, j: number) {
-  const bounds = calculateTileBounds(i, j);
+// Spawns a cache at the specified cell position.
+function spawnCache(cell: Cell) {
+  const bounds = board.getCellBounds(cell);
   const rect = leaflet.rectangle(bounds);
   rect.addTo(map);
-  rect.bindPopup(() => createCachePopup(i, j));
-}
-
-// Calculates the bounds for a tile based on cell indices.
-function calculateTileBounds(i: number, j: number): leaflet.LatLngBounds {
-  const origin = OAKES_CLASSROOM;
-  return leaflet.latLngBounds([
-    [origin.lat + i * TILE_DEGREES, origin.lng + j * TILE_DEGREES],
-    [origin.lat + (i + 1) * TILE_DEGREES, origin.lng + (j + 1) * TILE_DEGREES],
-  ]);
+  rect.bindPopup(() => createCachePopup(cell.i, cell.j));
 }
 
 // Creates a popup with point interactions for a cache.
@@ -92,7 +88,7 @@ function createCachePopup(i: number, j: number): HTMLDivElement {
   const popupDiv = document.createElement("div");
   popupDiv.classList.add("cache-popup");
   popupDiv.innerHTML = `
-    <div>There is a cache here at "${i},${j}". It has value <span id="value">${pointValue}</span>.</div>
+    <div>There is a cache here at "${i}, ${j}".<br>It has value <span id="value">${pointValue}</span>.</div>
     <button id="poke">poke</button>
     <button id="deposit">deposit</button>`;
 
@@ -136,8 +132,17 @@ function createCachePopup(i: number, j: number): HTMLDivElement {
 function populateCaches() {
   for (let i = -NEIGHBORHOOD_SIZE; i < NEIGHBORHOOD_SIZE; i++) {
     for (let j = -NEIGHBORHOOD_SIZE; j < NEIGHBORHOOD_SIZE; j++) {
+      // Adjust OAKES_CLASSROOM's position by the current loop indices (i, j)
+      const adjustedLat = OAKES_CLASSROOM.lat + i * TILE_DEGREES;
+      const adjustedLng = OAKES_CLASSROOM.lng + j * TILE_DEGREES;
+      const adjustedPoint = leaflet.latLng(adjustedLat, adjustedLng);
+
+      // Get the cell corresponding to the adjusted point
+      const cell = board.getCellForPoint(adjustedPoint);
+
+      // Randomize cache spawning based on probability
       if (luck([i, j].toString()) < CACHE_SPAWN_PROBABILITY) {
-        spawnCache(i, j);
+        spawnCache(cell);
       }
     }
   }
