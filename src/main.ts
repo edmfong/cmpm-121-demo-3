@@ -21,11 +21,19 @@ let playerTotalPoints = 0;
 const statusPanel = document.querySelector<HTMLDivElement>("#statusPanel")!;
 statusPanel.innerHTML = "No points yet...<br>0 coins";
 
+// Player's inventory (list of coins the player has collected)
+const playerInventory: Array<{ serial: number; i: number; j: number }> = [];
+const inventoryDiv = document.querySelector<HTMLDivElement>("#inventory")!;
+
 // Initialize the game map
 const map = initializeMap();
 
+// A map to store coins for each cache
+const cacheCoins: Map<string, Array<{ serial: number; i: number; j: number }>> =
+  new Map();
+
 // Map to store point values for each cache location
-const cachePointValues = new Map<string, number>();
+const _cachePointValues = new Map<string, number>();
 
 // Add player marker and display
 const playerMarker = createPlayerMarker();
@@ -70,41 +78,89 @@ function updatePlayerPoints() {
     `${playerPoints} points accumulated<br>${playerTotalPoints} coins`;
 }
 
+// Function to update the inventory display in the HTML
+function updateInventory() {
+  inventoryDiv.innerHTML = "<h3>Inventory</h3>"; // Optional header for the inventory
+
+  // Loop through the player's inventory and display each coin.
+  playerInventory.forEach((coin) => {
+    const coinDiv = document.createElement("div");
+    coinDiv.innerHTML = `${coin.j}:${coin.i}#${coin.serial}`;
+    inventoryDiv.appendChild(coinDiv);
+  });
+}
+
 // Spawns a cache at the specified cell position.
 function spawnCache(cell: Cell) {
   const bounds = board.getCellBounds(cell);
   const rect = leaflet.rectangle(bounds);
   rect.addTo(map);
   rect.bindPopup(() => createCachePopup(cell.i, cell.j));
+
+  // Initialize the coins array for this cache (x coins per cache, serial numbers 0 to x-1)
+  const coinCount = Math.floor(
+    luck([cell.i, cell.j, "coinCount"].toString()) * 10,
+  ); // Random coin count for each cache
+  const coins: Array<{ serial: number; i: number; j: number }> = [];
+
+  for (let serial = 0; serial < coinCount; serial++) {
+    coins.push({ serial, i: cell.i, j: cell.j });
+  }
+
+  cacheCoins.set(`${cell.i},${cell.j}`, coins);
 }
 
 // Creates a popup with point interactions for a cache.
 function createCachePopup(i: number, j: number): HTMLDivElement {
-  // Use the stored point value or generate a new one if it doesn't exist
-  let pointValue = cachePointValues.get(`${i},${j}`) ??
-    Math.floor(luck([i, j, "initialValue"].toString()) * 100);
-  cachePointValues.set(`${i},${j}`, pointValue); // Ensure it's saved in the map
+  // Retrieve the coins associated with this cache
+  const coins = cacheCoins.get(`${i},${j}`) || [];
 
   const popupDiv = document.createElement("div");
   popupDiv.classList.add("cache-popup");
   popupDiv.innerHTML = `
-    <div>There is a cache here at "${i}, ${j}".<br>It has value <span id="value">${pointValue}</span>.</div>
+    <div>There is a cache here at "${j}, ${i}".<br>It has ${coins.length} coins.</div>
     <button id="poke">poke</button>
     <button id="deposit">deposit</button>`;
+
+  const rect = leaflet.rectangle(board.getCellBounds({ i, j }));
+  rect.addTo(map);
+
+  // Create a new Leaflet Popup instance for this cache
+  const popup = leaflet.popup().setContent(popupDiv);
+
+  // When the rectangle is clicked, show the popup
+  rect.on("click", () => {
+    rect.bindPopup(popup).openPopup(); // Open the popup when the rectangle is clicked
+  });
 
   popupDiv.querySelector<HTMLButtonElement>("#poke")!.addEventListener(
     "click",
     () => {
-      if (pointValue > 0) {
-        pointValue--;
-        popupDiv.querySelector<HTMLSpanElement>("#value")!.innerHTML =
-          pointValue.toString();
-        playerPoints++;
-        playerTotalPoints++;
-        updatePlayerPoints();
+      // Check if there are any coins left in the cache
+      if (coins.length > 0) {
+        const coin = coins.pop(); // Get and remove the last coin
+        if (coin) {
+          // Log which coin was attained
+          console.log(`Coin attained: ${coin.j}:${coin.i}#${coin.serial}`);
 
-        // Update the stored value
-        cachePointValues.set(`${i},${j}`, pointValue);
+          // Add the coin to the player's inventory
+          playerInventory.push(coin);
+
+          // Update the inventory display
+          updateInventory();
+
+          // Update the stored value
+          cacheCoins.set(`${i},${j}`, coins);
+
+          // Update player's points
+          playerPoints++;
+          playerTotalPoints++;
+          updatePlayerPoints();
+
+          // Update the popup content dynamically after the poke
+          popupDiv.querySelector("div")!.innerHTML =
+            `There is a cache here at "${j}, ${i}".<br>It has ${coins.length} coins.`;
+        }
       }
     },
   );
@@ -113,14 +169,17 @@ function createCachePopup(i: number, j: number): HTMLDivElement {
     "click",
     () => {
       if (playerTotalPoints > 0) {
-        pointValue++;
-        popupDiv.querySelector<HTMLSpanElement>("#value")!.innerHTML =
-          pointValue.toString();
-        playerTotalPoints--;
-        updatePlayerPoints();
+        // Increment the number of coins and update the cache
+        const newSerial = coins.length;
+        coins.push({ serial: newSerial, i, j });
+        cacheCoins.set(`${i},${j}`, coins);
 
-        // Update the stored value
-        cachePointValues.set(`${i},${j}`, pointValue);
+        // Update the popup content dynamically after the deposit
+        popupDiv.querySelector("div")!.innerHTML =
+          `There is a cache here at "${j}, ${i}".<br>It has ${coins.length} coins.`;
+
+        // Update player's points
+        updatePlayerPoints();
       }
     },
   );
