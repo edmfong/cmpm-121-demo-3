@@ -3,7 +3,8 @@ import "leaflet/dist/leaflet.css";
 import "./style.css";
 import "./leafletWorkaround.ts";
 import luck from "./luck.ts";
-import { Board, Cell } from "./board.ts"; // Import Cell and Board
+import { Board, Cell } from "./board.ts";
+import { Cache } from "./momento.ts";
 
 // Constants and configuration
 const OAKES_CLASSROOM = leaflet.latLng(36.98949379578401, -122.06277128548504);
@@ -90,74 +91,55 @@ function updateInventory() {
   });
 }
 
-// Spawns a cache at the specified cell position.
 function spawnCache(cell: Cell) {
-  const bounds = board.getCellBounds(cell);
-  const rect = leaflet.rectangle(bounds);
-  rect.addTo(map);
-  rect.bindPopup(() => createCachePopup(cell.i, cell.j));
-
-  // Initialize the coins array for this cache (x coins per cache, serial numbers 0 to x-1)
   const coinCount = Math.floor(
     luck([cell.i, cell.j, "coinCount"].toString()) * 10,
-  ); // Random coin count for each cache
+  );
   const coins: Array<{ serial: number; i: number; j: number }> = [];
 
   for (let serial = 0; serial < coinCount; serial++) {
     coins.push({ serial, i: cell.i, j: cell.j });
   }
 
+  // Create Cache instance with initial state memento
+  const cache = new Cache(cell.i, cell.j, coins);
+  const cacheStateMemento = cache.toMomento();
+
+  // Store only the coins in cacheCoins, not the Cache object
   cacheCoins.set(`${cell.i},${cell.j}`, coins);
+
+  // Create and bind a rectangle with a popup to the map
+  const bounds = board.getCellBounds(cell);
+  const rect = leaflet.rectangle(bounds);
+  rect.addTo(map);
+  rect.bindPopup(() => createCachePopup(cell.i, cell.j));
+
+  console.log(`Cache memento saved: ${cacheStateMemento}`);
 }
 
-// Creates a popup with point interactions for a cache.
 function createCachePopup(i: number, j: number): HTMLDivElement {
-  // Retrieve the coins associated with this cache
   const coins = cacheCoins.get(`${i},${j}`) || [];
-
   const popupDiv = document.createElement("div");
   popupDiv.classList.add("cache-popup");
+
   popupDiv.innerHTML = `
     <div>There is a cache here at "${j}, ${i}".<br>It has ${coins.length} coins.</div>
     <button id="poke">poke</button>
     <button id="deposit">deposit</button>`;
 
-  const rect = leaflet.rectangle(board.getCellBounds({ i, j }));
-  rect.addTo(map);
-
-  // Create a new Leaflet Popup instance for this cache
-  const popup = leaflet.popup().setContent(popupDiv);
-
-  // When the rectangle is clicked, show the popup
-  rect.on("click", () => {
-    rect.bindPopup(popup).openPopup(); // Open the popup when the rectangle is clicked
-  });
-
   popupDiv.querySelector<HTMLButtonElement>("#poke")!.addEventListener(
     "click",
     () => {
-      // Check if there are any coins left in the cache
       if (coins.length > 0) {
-        const coin = coins.shift(); // Get and remove the last coin
+        const coin = coins.shift();
         if (coin) {
-          // Log which coin was attained
           console.log(`Coin attained: ${coin.j}:${coin.i}#${coin.serial}`);
-
-          // Add the coin to the player's inventory
           playerInventory.push(coin);
-
-          // Update the inventory display
-          updateInventory();
-
-          // Update the stored value
           cacheCoins.set(`${i},${j}`, coins);
-
-          // Update player's points
           playerPoints++;
           playerTotalPoints++;
           updatePlayerPoints();
-
-          // Update the popup content dynamically after the poke
+          updateInventory();
           popupDiv.querySelector("div")!.innerHTML =
             `There is a cache here at "${j}, ${i}".<br>It has ${coins.length} coins.`;
         }
@@ -168,32 +150,21 @@ function createCachePopup(i: number, j: number): HTMLDivElement {
   popupDiv.querySelector<HTMLButtonElement>("#deposit")!.addEventListener(
     "click",
     () => {
-      // Check if the player has at least one coin in the inventory
       if (playerInventory.length > 0) {
-        // Remove the first coin from the inventory
-        const firstCoin = playerInventory.shift(); // Removes the first coin
+        const firstCoin = playerInventory.shift();
         if (firstCoin) {
           console.log(`Coin deposited: ${j}:${i}#${firstCoin.serial}`);
-
-          // Add the coin to the cache's coins array
-          coins.push(firstCoin); // Add the first coin to the cache
-          cacheCoins.set(`${i},${j}`, coins); // Update the cache coins map
-
-          // Update the popup content dynamically after the deposit
+          coins.push(firstCoin);
+          cacheCoins.set(`${i},${j}`, coins);
+          playerPoints--; // Adjust points based on deposit logic
+          updatePlayerPoints();
+          updateInventory();
           popupDiv.querySelector("div")!.innerHTML =
             `There is a cache here at "${j}, ${i}".<br>It has ${coins.length} coins.`;
-
-          // Update player's points
-          playerPoints++;
-          playerTotalPoints++;
-          updatePlayerPoints();
         }
       } else {
         console.log("You have no coins to deposit.");
       }
-
-      // Update the inventory display
-      updateInventory();
     },
   );
 
