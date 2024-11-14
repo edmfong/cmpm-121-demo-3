@@ -1,77 +1,68 @@
 import leaflet from "leaflet";
 
-// Export the Cell interface so it can be used in other files
 export interface Cell {
   readonly i: number;
   readonly j: number;
 }
 
-// The Board class manages grid cells and tile-based operations
 export class Board {
   readonly tileWidth: number;
   readonly tileVisibilityRadius: number;
+
   private readonly knownCells: Map<string, Cell>;
 
   constructor(tileWidth: number, tileVisibilityRadius: number) {
     this.tileWidth = tileWidth;
     this.tileVisibilityRadius = tileVisibilityRadius;
-    this.knownCells = new Map<string, Cell>();
+    this.knownCells = new Map();
   }
 
   private getCanonicalCell(cell: Cell): Cell {
     const { i, j } = cell;
-    const key = `${i},${j}`;
-
+    const key = [i, j].toString();
     if (!this.knownCells.has(key)) {
-      this.knownCells.set(key, cell);
+      this.knownCells.set(key, { i, j });
     }
-
     return this.knownCells.get(key)!;
   }
 
   getCellForPoint(point: leaflet.LatLng): Cell {
-    const i = Math.floor(point.lng / this.tileWidth);
-    const j = Math.floor(point.lat / this.tileWidth);
-
-    return this.getCanonicalCell({ i, j });
+    return this.getCanonicalCell({
+      i: Math.floor(point.lat / this.tileWidth),
+      j: Math.floor(point.lng / this.tileWidth),
+    });
   }
 
   getCellBounds(cell: Cell): leaflet.LatLngBounds {
-    const { i, j } = cell;
-    const southWest = new leaflet.LatLng(
-      j * this.tileWidth,
-      i * this.tileWidth,
+    const southwest = new leaflet.latLng(
+      cell.i * this.tileWidth,
+      cell.j * this.tileWidth,
     );
-    const northEast = new leaflet.LatLng(
-      (j + 1) * this.tileWidth,
-      (i + 1) * this.tileWidth,
+    const northeast = new leaflet.latLng(
+      (cell.i + 1) * this.tileWidth,
+      (cell.j + 1) * this.tileWidth,
     );
-
-    return new leaflet.LatLngBounds(southWest, northEast);
+    return leaflet.latLngBounds(southwest, northeast);
   }
 
   getCellsNearPoint(point: leaflet.LatLng): Cell[] {
     const resultCells: Cell[] = [];
     const originCell = this.getCellForPoint(point);
-
     for (
-      let di = -this.tileVisibilityRadius;
-      di <= this.tileVisibilityRadius;
-      di++
+      let i = -this.tileVisibilityRadius;
+      i <= this.tileVisibilityRadius;
+      i++
     ) {
       for (
-        let dj = -this.tileVisibilityRadius;
-        dj <= this.tileVisibilityRadius;
-        dj++
+        let j = -this.tileVisibilityRadius;
+        j <= this.tileVisibilityRadius;
+        j++
       ) {
-        const neighborCell = this.getCanonicalCell({
-          i: originCell.i + di,
-          j: originCell.j + dj,
-        });
-        resultCells.push(neighborCell);
+        resultCells.push(
+          this.getCanonicalCell({ i: originCell.i + i, j: originCell.j + j }),
+        );
       }
     }
-
     return resultCells;
   }
 }
