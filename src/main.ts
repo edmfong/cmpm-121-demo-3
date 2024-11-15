@@ -161,11 +161,27 @@ function updateCacheMemento(cacheKey: string, cache: Cache) {
 }
 
 function updateInventory() {
-  inventory.innerHTML = `<h3>Inventory</h3>${
+  inventory.innerHTML = `Inventory: ${
     playerCoins.map((coin) =>
-      `Coin ${coin.cell.i}:${coin.cell.j}#${coin.serialNumber}<br>`
+      `<div><span class="coin-link" i="${coin.cell.i}" j="${coin.cell.j}">${coin.cell.i}:${coin.cell.j}#${coin.serialNumber}</span></div>`
     ).join("")
   }`;
+
+  // Event listeners for coin links to center map and move player marker on coin's home cache
+  const coinLinks = inventory.querySelectorAll(".coin-link");
+  coinLinks.forEach((link) => {
+    link.addEventListener("click", () => {
+      const i = Number(link.getAttribute("i"));
+      const j = Number(link.getAttribute("j"));
+      const latLng = leaflet.latLng(i * TILE_DEGREES, j * TILE_DEGREES);
+
+      map.setView(latLng, GAMEPLAY_ZOOM_LEVEL);
+      playerMarker.setLatLng(latLng);
+
+      playerPosition = { i, j };
+      populateCaches();
+    });
+  });
 }
 
 // Function to update visible caches
@@ -196,6 +212,11 @@ function movePlayer(iChange: number, jChange: number) {
   };
   updatePlayerMarker();
   populateCaches();
+  const latLng = leaflet.latLng(
+    playerPosition.i * TILE_DEGREES,
+    playerPosition.j * TILE_DEGREES,
+  );
+  updateMovementHistory(latLng.lat, latLng.lng); // Update polyline with new player position
 }
 
 // Add event listeners to player movement buttons
@@ -218,3 +239,105 @@ document.getElementById("east")!.addEventListener(
 
 updatePlayerMarker();
 populateCaches();
+
+const geolocationButton = document.getElementById("sensor")!;
+let geolocationWatchId: number | null = null;
+const movementHistory: Array<[number, number]> = [];
+const movementPolyline = leaflet.polyline([], { color: "blue" }).addTo(map);
+
+geolocationButton.addEventListener("click", () => {
+  if (!geolocationWatchId) {
+    geolocationWatchId = navigator.geolocation.watchPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        playerPosition = board.getCellForPoint(
+          leaflet.latLng(latitude, longitude),
+        );
+        updatePlayerMarker();
+        populateCaches();
+        updateMovementHistory(latitude, longitude); // Update polyline with geolocation data
+      },
+      (error) => console.error("Geolocation error:", error),
+      { enableHighAccuracy: true },
+    );
+  } else {
+    navigator.geolocation.clearWatch(geolocationWatchId);
+    geolocationWatchId = null;
+  }
+});
+
+function saveGameState() {
+  localStorage.setItem("playerCoins", JSON.stringify(playerCoins));
+  localStorage.setItem(
+    "cacheMementos",
+    JSON.stringify(Array.from(cacheMementos.entries())),
+  );
+  localStorage.setItem("movementHistory", JSON.stringify(movementHistory));
+}
+
+function loadGameState() {
+  const savedCoins = localStorage.getItem("playerCoins");
+  if (savedCoins) {
+    playerCoins.push(...JSON.parse(savedCoins));
+  }
+
+  const savedCaches = localStorage.getItem("cacheMementos");
+  if (savedCaches) {
+    JSON.parse(savedCaches).forEach(([key, memento]: [string, string]) => {
+      cacheMementos.set(key, memento);
+    });
+  }
+
+  const savedHistory = localStorage.getItem("movementHistory");
+  if (savedHistory) {
+    movementHistory.push(...JSON.parse(savedHistory));
+    renderMovementHistory();
+  }
+}
+
+// Call loadGameState when initializing the game
+loadGameState();
+globalThis.addEventListener("beforeunload", saveGameState);
+
+function updateMovementHistory(lat: number, lng: number) {
+  movementHistory.push([lat, lng]);
+  movementPolyline.setLatLngs(movementHistory);
+}
+
+function renderMovementHistory() {
+  movementPolyline.setLatLngs(movementHistory);
+}
+
+const resetButton = document.getElementById("reset")!;
+
+resetButton.addEventListener("click", () => {
+  const confirmation = globalThis.confirm(
+    "Are you sure you want to erase your game state? This action cannot be undone.",
+  );
+  if (confirmation) {
+    // Stop geolocation tracking if active
+    if (geolocationWatchId) {
+      navigator.geolocation.clearWatch(geolocationWatchId);
+      geolocationWatchId = null;
+    }
+
+    // Clear local storage
+    localStorage.removeItem("playerCoins");
+    localStorage.removeItem("cacheMementos");
+    localStorage.removeItem("movementHistory");
+
+    // Reset game state
+    playerCoins.length = 0;
+    cacheMementos.clear();
+    movementHistory.length = 0;
+    movementPolyline.setLatLngs([]); // Clear polyline
+    updateInventory();
+    populateCaches();
+
+    console.log("Game state has been reset.");
+  } else {
+    console.log("Game reset canceled.");
+  }
+});
+
+updateInventory();
