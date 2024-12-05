@@ -179,29 +179,47 @@ function updateInventory() {
       playerMarker.setLatLng(latLng);
 
       playerPosition = { i, j };
-      populateCaches();
+      populateCaches(
+        board,
+        map,
+        playerPosition,
+        TILE_DEGREES,
+        CACHE_SPAWN_PROBABILITY,
+        spawnCache,
+      );
     });
   });
 }
 
 // Function to update visible caches
-function populateCaches() {
+// Function to update visible caches
+function populateCaches(
+  board: Board,
+  map: leaflet.Map,
+  playerPosition: Cell,
+  tileDegrees: number,
+  cacheSpawnProbability: number,
+  spawnCache: (cell: Cell) => void,
+) {
   const playerLatLng = leaflet.latLng(
-    playerPosition.i * TILE_DEGREES,
-    playerPosition.j * TILE_DEGREES,
+    playerPosition.i * tileDegrees,
+    playerPosition.j * tileDegrees,
   );
   const nearbyCells = board.getCellsNearPoint(playerLatLng);
 
   // Remove existing cache layers
-  map.eachLayer((layer: leaflet.Layer) =>
-    layer instanceof leaflet.Rectangle && map.removeLayer(layer)
-  );
+  map.eachLayer((layer: leaflet.Layer) => {
+    if (layer instanceof leaflet.Rectangle) {
+      map.removeLayer(layer);
+    }
+  });
 
   // Display or update caches based on player position
-  nearbyCells.forEach((cell) =>
-    luck([cell.i, cell.j].toString()) < CACHE_SPAWN_PROBABILITY &&
-    spawnCache(cell)
-  );
+  nearbyCells.forEach((cell) => {
+    if (luck([cell.i, cell.j].toString()) < cacheSpawnProbability) {
+      spawnCache(cell);
+    }
+  });
 }
 
 // Function to move player
@@ -211,7 +229,14 @@ function movePlayer(iChange: number, jChange: number) {
     j: playerPosition.j + jChange,
   };
   updatePlayerMarker();
-  populateCaches();
+  populateCaches(
+    board,
+    map,
+    playerPosition,
+    TILE_DEGREES,
+    CACHE_SPAWN_PROBABILITY,
+    spawnCache,
+  );
   const latLng = leaflet.latLng(
     playerPosition.i * TILE_DEGREES,
     playerPosition.j * TILE_DEGREES,
@@ -238,7 +263,14 @@ document.getElementById("east")!.addEventListener(
 );
 
 updatePlayerMarker();
-populateCaches();
+populateCaches(
+  board,
+  map,
+  playerPosition,
+  TILE_DEGREES,
+  CACHE_SPAWN_PROBABILITY,
+  spawnCache,
+);
 
 const geolocationButton = document.getElementById("sensor")!;
 let geolocationWatchId: number | null = null;
@@ -254,7 +286,14 @@ geolocationButton.addEventListener("click", () => {
           leaflet.latLng(latitude, longitude),
         );
         updatePlayerMarker();
-        populateCaches();
+        populateCaches(
+          board,
+          map,
+          playerPosition,
+          TILE_DEGREES,
+          CACHE_SPAWN_PROBABILITY,
+          spawnCache,
+        );
         updateMovementHistory(latitude, longitude); // Update polyline with geolocation data
       },
       (error) => console.error("Geolocation error:", error),
@@ -332,7 +371,14 @@ resetButton.addEventListener("click", () => {
     movementHistory.length = 0;
     movementPolyline.setLatLngs([]); // Clear polyline
     updateInventory();
-    populateCaches();
+    populateCaches(
+      board,
+      map,
+      playerPosition,
+      TILE_DEGREES,
+      CACHE_SPAWN_PROBABILITY,
+      spawnCache,
+    );
 
     console.log("Game state has been reset.");
   } else {
