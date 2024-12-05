@@ -160,34 +160,47 @@ function updateCacheMemento(cacheKey: string, cache: Cache) {
   cacheMementos.set(cacheKey, cache.toMemento());
 }
 
-function updateInventory() {
+function updateInventoryDisplay(inventory: HTMLElement, playerCoins: Coin[]) {
   inventory.innerHTML = `Inventory: ${
-    playerCoins.map((coin) =>
-      `<div><span class="coin-link" i="${coin.cell.i}" j="${coin.cell.j}">${coin.cell.i}:${coin.cell.j}#${coin.serialNumber}</span></div>`
-    ).join("")
+    playerCoins
+      .map(
+        (coin) =>
+          `<div><span class="coin-link" i="${coin.cell.i}" j="${coin.cell.j}">${coin.cell.i}:${coin.cell.j}#${coin.serialNumber}</span></div>`,
+      )
+      .join("")
   }`;
+}
 
-  // Event listeners for coin links to center map and move player marker on coin's home cache
+function attachInventoryEventListeners(
+  inventory: HTMLElement,
+  _map: leaflet.Map,
+  onItemClick: (i: number, j: number) => void,
+) {
   const coinLinks = inventory.querySelectorAll(".coin-link");
   coinLinks.forEach((link) => {
     link.addEventListener("click", () => {
       const i = Number(link.getAttribute("i"));
       const j = Number(link.getAttribute("j"));
-      const latLng = leaflet.latLng(i * TILE_DEGREES, j * TILE_DEGREES);
-
-      map.setView(latLng, GAMEPLAY_ZOOM_LEVEL);
-      playerMarker.setLatLng(latLng);
-
-      playerPosition = { i, j };
-      populateCaches(
-        board,
-        map,
-        playerPosition,
-        TILE_DEGREES,
-        CACHE_SPAWN_PROBABILITY,
-        spawnCache,
-      );
+      onItemClick(i, j);
     });
+  });
+}
+
+function updateInventory() {
+  updateInventoryDisplay(inventory, playerCoins);
+  attachInventoryEventListeners(inventory, map, (i, j) => {
+    const latLng = leaflet.latLng(i * TILE_DEGREES, j * TILE_DEGREES);
+    map.setView(latLng, GAMEPLAY_ZOOM_LEVEL);
+    playerMarker.setLatLng(latLng);
+    playerPosition = { i, j };
+    populateCaches(
+      board,
+      map,
+      playerPosition,
+      TILE_DEGREES,
+      CACHE_SPAWN_PROBABILITY,
+      spawnCache,
+    );
   });
 }
 
